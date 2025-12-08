@@ -18,13 +18,13 @@
     ! then ;
 
 : insert-last { addr len }
-   addr len last 
-   addr len 0 do
-     ( last-value addr )
-     2dup i ++ insert? if
-       dup i ++ len i - -rotate
-       leave
-     then loop 2drop ;
+  addr len last 
+  addr len 0 do
+    ( last-value addr )
+    2dup i ++ insert? if
+      dup i ++ len i - -rotate
+      leave
+    then loop 2drop ;
 
 : sort ( addr len )
   dup 1 <= if 2drop else
