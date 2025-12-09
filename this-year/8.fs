@@ -1,110 +1,75 @@
 : s s" input-test-8.txt" slurp-file ;
 
-: before-char >r 2dup r> scan nip - ;
-: after-char scan dup 0<> if 1 /string then ;
-: first-line 10 before-char ;
-: rest-lines 10 after-char ;
-: /char ( a n c -- str-after-char str-before-char )
-  >r 2dup r@ after-char 2swap r> before-char ;
+: until-char >r 2dup r> scan nip - ;
+: count-char { c } 
+  0 -rot begin c scan dup 0<>
+    if 1 /string rot 1+ -rot
+    else 2drop exit then again ;
+: s>n 0 0 2swap >number 2drop drop ;
 
-: get-num-boxes 0 s begin
-    rest-lines rot 1+ -rot
-    dup 0= until 2drop ;
-get-num-boxes constant num-boxes
+: /oneline ( addr u -- addr u addr u )
+  2dup 10 scan tuck 2>r -
+  2r> 1 /string 2swap ;
 
-: boxes cells 3 * ;
-create boxes-arr num-boxes boxes allot
+: /csv-num ( addr u -- addr u n )
+  0 0 2swap >number
+  dup 0<> if 1 /string then
+  rot drop rot ;
 
-: line-at ( n )
-  s rot 0 ?do rest-lines loop first-line ;
+: s1 s" 12,34,567" ;
 
-: s>n  ( addr u -- n )
-  0 0 2swap >number 2drop drop ;
-: parse-box-line ( s )
-  ',' /char s>n -rot ',' /char s>n -rot s>n ;
-: 3reverse swap rot ;
-: init-boxes-arr
-  num-boxes 0 do
-    i line-at parse-box-line 3reverse
-    boxes-arr i boxes + >r
-    r@ !
-    r@ 1 cells + !
-    r> 2 cells + !
-  loop ;
-init-boxes-arr
 
-\ box is ( n n n )
-: box-at ( n -- box )
-  boxes boxes-arr + >r
-  r@ @
-  r@ 1 cells + @
-  r> 2 cells + @ ;
- 
-: sq dup * ;
-: calculate-dist ( n n -- ) ( F: -- r )
-  >r box-at r> box-at
-  3 pick - abs sq >r
-  3 pick - abs sq >r
-  3 pick - abs sq >r
-  drop drop drop 
-  r> r> r> + + s>f fsqrt ;
+: csv>box ( "1,2,3" -- addr )
+  here >r
+  /csv-num ,
+  /csv-num ,
+  /csv-num ,
+  2drop r> ;
 
-create dist-arr \ each element is dist box-num box-num
-  num-boxes num-boxes * dup
-  floats swap 2 * cells + allot
-: dist-arr-elems dup 2 * cells swap floats + ;
+: -x@ @ ;
+: -y@ 1 cells + @ ;
+: -z@ 2 cells + @ ;
 
-: init-dist
-  num-boxes 0 do
-    num-boxes 0 do
-      j num-boxes * i + dist-arr-elems dist-arr + { arr }
-      i j calculate-dist arr f!
-      \ i j . . arr f@ f.
-      i arr 1 floats + !
-      j arr 1 floats + 1 cells + !
-    loop
-  loop ;
-init-dist
+s 10 count-char constant num-boxes
+create boxes num-boxes cells allot
 
-: dist ( n n )
-  num-boxes * + dist-arr-elems dist-arr + f@ ;
-: dist-arr-at ( n )
-  dist-arr-elems dist-arr + ;
+: nth-box cells boxes + @ ;
 
-: dist-insert-idx ( n )
-  dup 1- dist-arr-at f@
-  dup 0 do 
-    ( n ) ( F: -- dist )
-    \ fdup f.
-    fdup i dist-arr-at f@ ( fdup f. ) f< if
-      drop fdrop i leave
-    then
-    dup i 1+ = if
-      drop fdrop i leave
-    then
-  loop ;
+: init-boxes
+  s num-boxes 0 do
+    /oneline csv>box i cells boxes + !
+  loop 2drop ;
+init-boxes
 
-: print-dist-arr ( n )
-  0 do i dist-arr-at f@ f. loop ;
+: boxes>junct ( addr addr -- addr )
+  swap here >r , , r> ;
 
-create buf 1 dist-arr-elems allot
-: sort-last-dist { n }
-  n 1- dist-arr-at buf 1 dist-arr-elems move
-  n dist-insert-idx dup { insert-idx } dist-arr-at 
-  \ insert-idx . newline type
-  dup 1 dist-arr-elems +
-  n insert-idx - 1- ( dup . newline type ) dist-arr-elems
-  move
-  buf insert-idx dist-arr-at 1 dist-arr-elems move
-  \ n print-dist-arr newline type
-  ;
+num-boxes 1- dup 1+ * 2 / constant num-juncts
+create juncts num-juncts cells allot
 
-  
-: sort-dist-arr
-  num-boxes num-boxes * 2 do i sort-last-dist loop ;
-sort-dist-arr
+: init-juncts
+  juncts num-boxes 0 do
+    i 0 ?do
+      dup i nth-box j nth-box boxes>junct swap !
+      1 cells +
+    loop 
+  loop drop ;
+init-juncts
 
-: nth-smallest-pair ( n )
-  \ 0 is smallest
-  2 * num-boxes 1- ( skip 0's ) +
-  dist-arr-at dup 1 cells + @ swap 2 cells + @ swap ;
+: dist ( junct -- ) ( F: -- n )
+  0 swap dup 1 cells + @ swap @
+  3 0 do
+    2dup @ swap @ - dup *
+    3 roll + -rot
+    1 cells + swap 1 cells +
+  loop 2drop s>f fsqrt ;
+
+: box= ( addr addr )
+  2dup @ swap @ = -rot
+  1 cells + swap 1 cells +
+  2dup @ swap @ = -rot
+  1 cells + swap 1 cells +
+  @ swap @ = and and ;
+
+\ : sort-juncts 
+\ ;
