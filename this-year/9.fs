@@ -1,7 +1,7 @@
-\ : s s" input-9.txt" slurp-file ;
-: s s" input-test-9.txt" slurp-file ;
-\ 100000 constant width \ should generate this programmatically but...
-12 constant width \ should generate this programmatically but...
+: s s" input-9.txt" slurp-file ;
+\ : s s" input-test-9.txt" slurp-file ;
+100000 constant width \ should generate this programmatically but...
+\ 12 constant width \ should generate this programmatically but...
 
 : /oneline ( addr u -- addr u addr u )
   2dup 10 scan tuck 2>r -
@@ -46,63 +46,60 @@ init-reds
     loop
   loop ;
 
+: pt1 @ ;
+: pt2 ++ @ ;
 
-: point here >r swap , , r> ;
+: pt here >r swap , , r> ;
+: x @ ;
+: y ++ @ ;
+: xs ( r )
+  dup pt1 x swap pt2 x ;
+: ys ( r )
+  dup pt1 y swap pt2 y ;
+: << { a b c -- b }
+  a b < b c < and ;
 
-: xs ( rect -- x1 x2 )
-  dup @ @ swap ++ @ @ ;
-: ys ( rect -- y1 y2 )
-  dup @ ++ @ swap ++ @ ++ @ ;
-: between ( a b c -- b )
-  2dup <= >r
-  drop <= r> and ;
+: overlaps? { start1 end1 start2 end2 }
+  ( assumes startn endn <= )
+  start1 start2 <=
+  end1 start2 <= and
+  end2 start1 <=
+  end2 end1 <= and or invert ;
 
-: contains-red? { x1 y1 x2 y2 -- b }
-  false num-reds 0 do
-    x1 x2 min i nth-red @     x1 x2 max between
-    y1 y2 min i nth-red ++ @  y1 y2 max between 
-    and if drop true then
-  loop ;
-
-: validation-rects { pt1 pt2 -- x1 y1 x2 y2 x3 y3 x4 y4 }
-  pt1 @ pt2 @ <
-  pt1 ++ @ pt2 ++ @ < xor if
-    ( y=x shaped )
-    pt1 @ pt2 @ min
-    pt1 ++ @ pt2 ++ @ min
-    0 0
-
-    pt1 @ pt2 @ max
-    pt1 ++ @ pt2 ++ @ max
-    width width
+: goes-across? { p1 p2 r }
+  ( assumes p1 p2 <> )
+  p1 y p2 y = if
+    r ys min  p1 y  r ys max <<
+    p1 x p2 x 2dup min -rot max r xs 2dup min -rot max overlaps? and
   else
-    ( y=-x shaped )
-    pt1 @ pt2 @ min
-    pt1 ++ @ pt2 ++ @ max
-    0 width
+    r xs min  p1 x  r xs max <<
+    p1 y p2 y 2dup min -rot max r ys 2dup min -rot max overlaps? and
+  then ;
+: print-reds num-reds 0 do i nth-red dup x . y . space loop ;
 
-    pt1 @ pt2 @ max
-    pt1 ++ @ pt2 ++ @ min
-    width 0
+: valid? { r }
+  true num-reds 1- 0 do
+    \ i . i 1+ . newline type
+    i nth-red i 1+ nth-red r goes-across? if
+      drop false leave
+    then
+  loop 
+  num-reds 1- nth-red 0 nth-red r goes-across? if
+    drop false
   then ;
 
-: print-rect ( rect )
-  dup @ dup @ . ++ @ .
-  ++ @ dup @ . ++ @ . ;
-
-: rectable? ( pt1 pt2 -- b )
-  validation-rects contains-red? >r contains-red? r> and ;
+create rect-buf 2 cells allot
+: rect-buf! { p1 p2 }
+  p1 rect-buf ! p2 rect-buf ++ ! ;
 
 : parttwo
   0 num-reds 0 do
     i 0 ?do
-      i nth-red j nth-red 
-      2dup rectable? if
-        rect size 2dup < if dup . max else drop then
-        \ dup 50 = if i . j . then
-      else
-        2drop
+      i nth-red j nth-red rect-buf!
+      rect-buf valid? if
+        rect-buf size max
       then
     loop
   loop ;
-( need to do this with grid and col and row checking to alternatively fill with greens. )
+
+partone parttwo
