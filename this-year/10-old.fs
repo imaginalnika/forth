@@ -90,3 +90,77 @@ create bools-buf num-bools allot
     3 roll + -rot
     dup 0=
   until 2drop ;
+
+: move-and-zero-out ( addr addr u -- )
+  >r 2dup r> move over - erase ;
+
+: push-move-cells ( addr len numzeros -- )
+  tuck - >r cells over + r> cells move-and-zero-out ;
+
+: num-trailing-zeros ( addr len -- n )
+  0 -rot tuck cells + swap 0 do
+    cell - dup @ 0= if swap 1+ swap else leave then
+  loop drop ;
+
+: lexico-push ( addr n -- )
+  2dup num-trailing-zeros push-move-cells ;
+
+: f here 3 , 0 , 0 , 3 2dup lexico-push print ;
+
+: last-non-zero ( addr n -- addr )
+  2dup num-trailing-zeros 1+ - cells + ;
+: /last-non-zero ( addr n -- addr n )
+  2dup num-trailing-zeros 1+ -rot last-non-zero swap ;
+
+: --! ( addr -- ) -1 swap +! ;
+: ++! ( addr -- ) 1 swap +! ;
+: steal ( addr -- ) dup cell - ++! --! ;
+: lexico-next ( addr n -- )
+  /last-non-zero over steal lexico-push ;
+
+: lexico-end? ( addr n -- b )
+  tuck num-trailing-zeros = ;
+
+: lexico-start ( n -- addr n )
+  here swap dup 1- 0 do
+    0 ,
+  loop dup , ;
+
+( now need to know what pressing all the buttons according to lexico will do )
+
+
+variable seed
+here seed !
+: rnd ( -- n )
+  seed @ 6364136223846793005 * 1+ dup seed ! 33 rshift ; \ musl implementation
+: randbool ( n -- b )
+  rnd 2 mod 0= ;
+: rand-button ( num-digits -- button )
+  0 swap 0 do randbool if i 2^ + then loop ;
+
+: light? ( button n )
+  2^ and 0<> ;
+: nth-joltage+! ( addr n amount -- ) -rot cells + +! ;
+
+: button+! ( joltage-addr n button amount -- )
+  { amount } swap 0 do dup i light? if over i amount nth-joltage+! then loop 2drop ;
+
+: buttons+! ( joltage-addr n buttons-addr n -- )
+  0 do dup @ >r -rot 2dup r> button+! cell + loop ;
+
+: wires? ( button n -- b )
+  rshift 1 and 0<> ;
+: joltage++ ( joltage-addr n -- )
+  cells + 1 swap +! ;
+: joltage-press-button ( joltage-addr button -- )
+  num-digits 0 do dup i wires? if over i joltage++ then loop 2drop ;
+\ : joltage-press-buttons ( joltage-addr buttons-addr n -- )
+\   0 do 2dup @ joltage-press-button cell + loop 2drop ;
+: duo-cell+ cell + swap cell + swap ;
+: duo-@ @ swap @ swap ;
+: joltage<= ( addr addr )
+  num-digits 0 do 2dup duo-@ > if 2drop false unloop exit then duo-cell+ loop 2drop true ;
+
+: last ( addr n -- addr )
+  1- cells + ;
+
